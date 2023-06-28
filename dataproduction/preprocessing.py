@@ -513,8 +513,8 @@ def prepare_test_data(data_list, ev):
                candidate_match=cand_match)
     return data
             
-def flatten_lists(el, es1, es2, ed, nd, bs, cm):
-    edge_label, edge_score_Ecp, edge_score_Ereco, edge_data, node_data, best_simTs_match, candidate_match = [], [], [], [], [], [], []
+def flatten_lists(el, es1, es2, ed, nd, bs, cm, se, sp, sat):
+    edge_label, edge_score_Ecp, edge_score_Ereco, edge_data, node_data, best_simTs_match, candidate_match, sc_energy, sc_pid, sc_ass_tracksters = [], [], [], [], [], [], [], [], [], []
     for i, X in enumerate(nd):
         for ev in range(len(X)):
                   
@@ -532,8 +532,11 @@ def flatten_lists(el, es1, es2, ed, nd, bs, cm):
                 edge_score_Ereco.append(es2[i][ev])
                 best_simTs_match.append(bs[i][ev])
                 candidate_match.append(cm[i][ev])
+                sc_energy.append(se[i][ev])
+                sc_pid.append(sp[i][ev])
+                sc_ass_tracksters.append(sat[i][ev])
     #flatten_list = [ele for inner_list in pkl_list for ele in inner_list]
-    return edge_label, edge_score_Ecp, edge_score_Ereco, edge_data, node_data, best_simTs_match, candidate_match
+    return edge_label, edge_score_Ecp, edge_score_Ereco, edge_data, node_data, best_simTs_match, candidate_match, sc_energy, sc_pid, sc_ass_tracksters
              
     
 def save_dataset(pickle_data, output_location, trainRatio = 0.8, valRatio = 0.1, testRatio = 0.1):
@@ -551,7 +554,7 @@ def save_dataset(pickle_data, output_location, trainRatio = 0.8, valRatio = 0.1,
 #     node_data = flatten_list(node_data)
 #     best_simTs_match = flatten_list(best_simTs_match)
 #     candidate_match = flatten_list(candidate_match)
-    edge_label, edge_score_Ecp, edge_score_Ereco, edge_data, node_data, best_simTs_match, candidate_match, sc_energy, sc_pid, sc_ass_tracksters = flatten_lists(el, es1, es2, ed, nd, bs, cm,se,sp,sat)
+    edge_label, edge_score_Ecp, edge_score_Ereco, edge_data, node_data, best_simTs_match, candidate_match, sc_energy, sc_pid, sc_ass_tracksters = flatten_lists(el, es1, es2, ed, nd, bs, cm, se, sp, sat)
 
     data_list = []
     print(f"{len(node_data)} total events in dataset.")
@@ -574,9 +577,9 @@ def save_dataset(pickle_data, output_location, trainRatio = 0.8, valRatio = 0.1,
         edge_index = torch.from_numpy(edge_data[ev])
         b_simTs_match = torch.from_numpy(best_simTs_match[ev])
         cand_match = torch.from_numpy(candidate_match[ev])
-        sc_e = torch.from_numpy(sc_energy)
-        sc_p = torch.from_numpy(sc_pid)
-        sc_at = torch.from_numpy(sc_ass_tracksters)
+        sc_e = torch.from_numpy(sc_energy[ev])
+        sc_p = torch.from_numpy(sc_pid[ev])
+        sc_at = torch.from_numpy(sc_ass_tracksters[ev])
 
         data = Data(x=x, num_nodes=torch.tensor(x.shape[0]),
                     edge_index=edge_index, edge_label=e_label, 
@@ -630,8 +633,8 @@ if __name__ == "__main__":
 
     if dataset_id==0:
         # Pion
-        pkl_path = "/eos/home-m/mmatthew/Patatrack13/Cone-Graph-building/dataproduction/closeByDoublePion_pkl_dataset_final_cand_fixed_no_norm/"
-        processed_dataset_path = "/eos/home-m/mmatthew/Patatrack13/Cone-Graph-building/dataproduction/closeByDoublePion_dataset_final_cand_fixed_no_norm/"
+        pkl_path = "/eos/user/e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_pkl/"
+        processed_dataset_path = "/eos/user/e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_dataset/"
         n_tuples_path = "/eos/cms/store/group/dpg_hgcal/comm_hgcal/wredjeb/TICLv4Sample/Uniform10_600/CloseByTwoPion_fix2/ntuples_10_600/ntuples_10_600"
 
     if dataset_id==1:
