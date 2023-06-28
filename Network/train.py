@@ -26,6 +26,7 @@ import argparse
 import importlib.util
 
 import numpy as np
+from test import *
 
 def get_model_prediction(model, testLoader, prepare_network_input_data=None, 
                          device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
@@ -407,19 +408,20 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 
 if __name__ == "__main__":
     # Load the dataset
-    dataset_location = "/eos/user/a/arouyer/SWAN_projects/closeByDoublePion_dataset_TICL_graph_33_properties"
+#E    dataset_location = "/eos/user/a/arouyer/SWAN_projects/closeByDoublePion_dataset_TICL_graph_33_properties"
+    dataset_location = "/eos/home-e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_dataset/"
 
     print(">>> Loading datasets...")
     trainDataset = torch.load(f"{dataset_location}/dataTraining.pt")
     valDataset = torch.load(f"{dataset_location}/dataVal.pt")
     testList = torch.load(f"{dataset_location}/dataTest.pt")
 
-    testDataset = []
-
-    for ev in range(len(testList)):
-        data = prepare_test_data(testList, ev)
-        testDataset.append(data)
-    print(">>> Loaded.")
+#E   testDataset = []
+#E
+#E   for ev in range(len(testList)):
+#E       data = prepare_test_data(testList, ev)
+#E       testDataset.append(data)
+#E   print(">>> Loaded.")
 
     # Imbalance in training
     train_edges_total, train_edges_true, train_edges_false, num_nodes = 0, 0, 0, 0
@@ -441,7 +443,6 @@ if __name__ == "__main__":
     alpha = round(1 - train_edges_true/train_edges_total, 3)
     print(f"Setting focal loss alpha to: {alpha}")
 
-
     GPU_index = 0
     print(f"Torch version: {torch.__version__}")
     use_cuda = torch.cuda.is_available()
@@ -459,8 +460,10 @@ if __name__ == "__main__":
 
     # Create Model
     model = GNN_TracksterLinkingNet_multi(input_dim = trainDataset[0].x.shape[1], 
-                                    edge_feature_dim=trainDataset[0].edge_features.shape[1],
-                                    edge_hidden_dim=32, hidden_dim=64, weighted_aggr=True,multi_head = 3,device=device)
+#E                                   edge_feature_dim=trainDataset[0].edge_features.shape[1],
+#E                                   edge_hidden_dim=32, hidden_dim=64, weighted_aggr=True,multi_head = 3,device=device)
+                                    edge_feature_dim=0,
+                                    edge_hidden_dim=0, hidden_dim=64, weighted_aggr=True,multi_head = 3,device=device)
                                 #dropout=0)
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -471,7 +474,7 @@ if __name__ == "__main__":
 
     epochs = 50
     decision_th = 0.85
-    outputModelPath = "/eos/home-m/mmatthew/Patatrack13/Cone-Graph-building/output/gnn__double_pion_0_PU_33_features_2MH"
+    outputModelPath = "/eos/home-e/ebrondol/SWAN_projects/Cone-Graph-building2/output/test_1/"
     mkdir_p(outputModelPath)
 
     # Training Loop
@@ -480,7 +483,8 @@ if __name__ == "__main__":
     val_loss_hist = []
     for epoch in range(epochs):
 
-        loss = train(model, optimizer, train_dl, epoch+1, device, edge_features=True)
+        loss = train(model, optimizer, train_dl, epoch+1, device, edge_features=False)
+#E        loss = train(model, optimizer, train_dl, epoch+1, device, edge_features=True)
         train_loss_hist.append(loss)
         print(f'Epoch: {epoch+1}, train loss: {loss:.4f}')
         
@@ -496,9 +500,10 @@ if __name__ == "__main__":
         val_loss, j = 0, 0
         for sample in val_dl:
             sample = sample.to(device)
-            if sample.edge_index.shape[1] != sample.edge_features.shape[0]:
-                continue
-            data = prepare_network_input_data(sample.x, sample.edge_index, sample.edge_features, device=device)
+#E            if sample.edge_index.shape[1] != sample.edge_features.shape[0]:
+#E                continue
+#E            data = prepare_network_input_data(sample.x, sample.edge_index, sample.edge_features, device=device)
+            data = prepare_network_input_data(sample.x, sample.edge_index, None, device=device)
             nn_pred,emb, edge_emb = model(*data)
             pred += nn_pred.tolist()
             lab += sample.edge_label.tolist()
