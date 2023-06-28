@@ -1,6 +1,6 @@
 import argparse
 import os.path as osp
-
+import pdb
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 import pickle
@@ -18,7 +18,85 @@ import time
 import sys
 from tqdm import tqdm
 
-@jit
+
+def loadData(path, num_files = -1):
+    """
+    Loads pickle files of the graph data for network training.
+    """
+    pdb.set_trace()
+
+    f_edges_label = glob.glob(f"{path}*edges_labels.pkl")
+    #f_edges_features = glob.glob(f"{path}*edges_features.pkl")
+    f_edges_scores_Ecp = glob.glob(f"{path}*edges_scores_1.pkl")
+    f_edges_scores_Ereco = glob.glob(f"{path}*edges_scores_2.pkl")
+    f_edges = glob.glob(f"{path}*edges.pkl" )
+    f_nodes_features = glob.glob(f"{path}*node_features.pkl")
+    f_best_simTs_match = glob.glob(f"{path}*_best_simTs_match.pkl")
+    f_candidate_match = glob.glob(f"{path}*_candidate_match.pkl")
+
+    f_SC_energy = glob.glob(f"{path}*_SC_energy.pkl")
+    f_SC_pid = glob.glob(f"{path}*_SC_pid.pkl")
+    f_SC_ass_tracksters = glob.glob(f"{path}*_SC_ass_tracksters.pkl")
+
+    
+    edges_label, edges_scores_Ecp, edges_scores_Ereco, edges, nodes_features, best_simTs_match, candidate_match, edges_features = [], [], [], [], [], [], [], []
+    SC_energy, SC_pid, SC_ass_tracksters = [],[],[]
+    
+    n = len(f_edges_label) if num_files == -1 else num_files
+
+    for i_f, _ in enumerate(tqdm(f_edges_label)):
+        
+        # Load the data
+        if (i_f <= n):
+            f = f_edges_label[i_f]
+            with open(f, 'rb') as fb:
+                edges_label.append(pickle.load(fb))
+                
+            #f = f_edges_features[i_f]
+            #with open(f, 'rb') as fb:
+            #    edges_features.append(pickle.load(fb))
+                
+            f = f_edges_scores_Ecp[i_f]
+            with open(f, 'rb') as fb:
+                edges_scores_Ecp.append(pickle.load(fb))
+                
+            f = f_edges_scores_Ereco[i_f]
+            with open(f, 'rb') as fb:
+                edges_scores_Ereco.append(pickle.load(fb))
+                
+            f = f_edges[i_f]
+            with open(f, 'rb') as fb:
+                edges.append(pickle.load(fb))
+                
+            f = f_nodes_features[i_f]
+            with open(f, 'rb') as fb:
+                nodes_features.append(pickle.load(fb))
+                
+            f = f_best_simTs_match[i_f]
+            with open(f, 'rb') as fb:
+                best_simTs_match.append(pickle.load(fb))
+                
+            f = f_candidate_match[i_f]
+            with open(f, 'rb') as fb:
+                candidate_match.append(pickle.load(fb))
+
+            f = f_SC_energy[i_f]
+            with open(f, 'rb') as fb:
+                SC_energy.append(pickle.load(fb))
+
+            f = f_SC_pid[i_f]
+            with open(f, 'rb') as fb:
+                SC_pid.append(pickle.load(fb))
+
+            f = f_SC_ass_tracksters[i_f]
+            with open(f, 'rb') as fb:
+                SC_ass_tracksters.append(pickle.load(fb))
+                
+        else:
+            break
+            
+    return edges_label, edges_scores_Ecp, edges_scores_Ereco, edges, nodes_features, best_simTs_match, candidate_match, SC_energy,SC_pid,SC_ass_tracksters#, edges_features
+
 def findNearestNeighbour(i, barycenters_x, barycenters_y, barycenters_z):
     # find nn, dist to nn for trackster i
     pos_i = np.array([barycenters_x[i], barycenters_y[i], barycenters_z[i]])
@@ -47,7 +125,7 @@ def mkdir_p(mypath):
         if not (exc.errno == EEXIST and path.isdir(mypath)):
             raise
 
-@jit
+
 def computeEdgeAndLabels(trk_data, ass_data, gra_data, edges, edges_labels, edge_scores_1, edge_scores_2, 
                          simtrackstersSC_data, best_simTs_match, score_threshold = 0.2):
     '''Function to compute the truth graph and assign the edge scores and labels.
@@ -246,7 +324,8 @@ def save_pickle_dataset(input_folder, outputPath, offset = 0, jupyter=False):
     print(f"Number of files: {len(files)}")
 
     X, Edges, Edges_labels, Edges_scores_1, Edges_scores_2, Best_simTs_match, Candidate_match = [], [], [], [], [], [], []
-    
+    SC_energy, SC_pid, SC_ass_tracksters = [], [], []
+
     mkdir_p(outputPath)
     cum_events = 0
 
@@ -271,7 +350,8 @@ def save_pickle_dataset(input_folder, outputPath, offset = 0, jupyter=False):
                 ass_data = ass.arrays(["tsCLUE3D_recoToSim_SC", "tsCLUE3D_recoToSim_SC_score",
                                        "tsCLUE3D_simToReco_SC", "tsCLUE3D_simToReco_SC_score",
                                        "tsCLUE3D_simToReco_SC_sharedE", "tsCLUE3D_recoToSim_SC_sharedE"])
-                simtrackstersSC_data = simtrackstersSC.arrays("stsSC_raw_energy")
+                simtrackstersSC_data = simtrackstersSC.arrays(["stsSC_raw_energy","stsSC_regressed_energy","stsSC_pdgID"])
+                #simtrackstersSC_data = simtrackstersSC.arrays("stsSC_raw_energy")
                 cand_data = cand.arrays(["tracksters_in_candidate"])
 
         except Exception as e:
@@ -323,7 +403,7 @@ def save_pickle_dataset(input_folder, outputPath, offset = 0, jupyter=False):
                    trackster_sizes,
                    trk_data[ev].raw_energy, 
                    trk_data[ev].raw_em_energy], dtype=np.float32)
-            
+
             if len(edges) == 0:
                 print(f"Event {ev} has zero edges. Skipping.")
                 continue # Skip events with no edges
@@ -335,7 +415,9 @@ def save_pickle_dataset(input_folder, outputPath, offset = 0, jupyter=False):
             Edges_scores_2.append(np.array(edge_scores_2, dtype=np.float32))
             Best_simTs_match.append(np.array(best_simTs_match, dtype=np.float32))
             Candidate_match.append(np.array(in_candidate, dtype=np.float32))
-
+            SC_pid.append(np.array(simtrackstersSC_data[ev].stsSC_pdgID))
+            SC_energy.append(np.array(simtrackstersSC_data[ev].stsSC_regressed_energy))
+            SC_ass_tracksters.append(np.array(ass_data[ev].tsCLUE3D_simToReco_SC))
 
             ev_id = ev + 1
             # Save to disk
@@ -360,6 +442,14 @@ def save_pickle_dataset(input_folder, outputPath, offset = 0, jupyter=False):
                     pickle.dump(Best_simTs_match, fp)
                 with open(f"{outputPath}{i_file}_{ev_id}_candidate_match.pkl", "wb") as fp:
                     pickle.dump(Candidate_match, fp)
+                    
+                # SimTrackster Truth Information
+                with open(f"{outputPath}{i_file}_{ev_id}_SC_energy.pkl", "wb") as fp:
+                    pickle.dump(SC_energy, fp)
+                with open(f"{outputPath}{i_file}_{ev_id}_SC_pid.pkl", "wb") as fp:
+                    pickle.dump(SC_pid, fp)
+                with open(f"{outputPath}{i_file}_{ev_id}_SC_ass_tracksters.pkl", "wb") as fp:
+                    pickle.dump(SC_ass_tracksters, fp)
                     
                 # Scores statistics printing
                 Edges_scores_flat = [item for sublist in Edges_scores_1 for item in sublist]
@@ -447,12 +537,11 @@ def flatten_lists(el, es1, es2, ed, nd, bs, cm):
              
     
 def save_dataset(pickle_data, output_location, trainRatio = 0.8, valRatio = 0.1, testRatio = 0.1):
-    
-    from load_data import loadData
-    
+        
     print("Loading Pickle Files...")
     # obtain edges_label, edges, nodes_features from all the pickle files
-    el, es1, es2, ed, nd, bs, cm = loadData(pickle_data, num_files = -1)
+    pdb.set_trace()
+    el, es1, es2, ed, nd, bs, cm, se, sp, sat = loadData(pickle_data, num_files = -1)
     print("Loaded.")
     
 #     edge_label = flatten_list(edge_label)
@@ -462,7 +551,7 @@ def save_dataset(pickle_data, output_location, trainRatio = 0.8, valRatio = 0.1,
 #     node_data = flatten_list(node_data)
 #     best_simTs_match = flatten_list(best_simTs_match)
 #     candidate_match = flatten_list(candidate_match)
-    edge_label, edge_score_Ecp, edge_score_Ereco, edge_data, node_data, best_simTs_match, candidate_match = flatten_lists(el, es1, es2, ed, nd, bs, cm)
+    edge_label, edge_score_Ecp, edge_score_Ereco, edge_data, node_data, best_simTs_match, candidate_match, sc_energy, sc_pid, sc_ass_tracksters = flatten_lists(el, es1, es2, ed, nd, bs, cm,se,sp,sat)
 
     data_list = []
     print(f"{len(node_data)} total events in dataset.")
@@ -485,11 +574,15 @@ def save_dataset(pickle_data, output_location, trainRatio = 0.8, valRatio = 0.1,
         edge_index = torch.from_numpy(edge_data[ev])
         b_simTs_match = torch.from_numpy(best_simTs_match[ev])
         cand_match = torch.from_numpy(candidate_match[ev])
+        sc_e = torch.from_numpy(sc_energy)
+        sc_p = torch.from_numpy(sc_pid)
+        sc_at = torch.from_numpy(sc_ass_tracksters)
 
         data = Data(x=x, num_nodes=torch.tensor(x.shape[0]),
                     edge_index=edge_index, edge_label=e_label, 
                     edge_score_Ecp=e_score_Ecp, edge_score_Ereco=e_score_Ereco,
-                    best_simTs_match=b_simTs_match, candidate_match=cand_match)
+                    best_simTs_match=b_simTs_match, candidate_match=cand_match, 
+                    sc_energy=sc_e,sc_pid=sc_p, sc_ass_tracksters=sc_at)
         
         # This graph is directed.
         #print(f"data is directed: {data.is_directed()}")
@@ -537,19 +630,19 @@ if __name__ == "__main__":
 
     if dataset_id==0:
         # Pion
-        pkl_path = "/eos/user/j/jejarosl/SWAN_projects/closeByDoublePion_pkl_dataset_final_cand_fixed_no_norm/"
-        processed_dataset_path = "/eos/user/j/jejarosl/SWAN_projects/closeByDoublePion_dataset_final_cand_fixed_no_norm/"
+        pkl_path = "/eos/home-m/mmatthew/Patatrack13/Cone-Graph-building/dataproduction/closeByDoublePion_pkl_dataset_final_cand_fixed_no_norm/"
+        processed_dataset_path = "/eos/home-m/mmatthew/Patatrack13/Cone-Graph-building/dataproduction/closeByDoublePion_dataset_final_cand_fixed_no_norm/"
         n_tuples_path = "/eos/cms/store/group/dpg_hgcal/comm_hgcal/wredjeb/TICLv4Sample/Uniform10_600/CloseByTwoPion_fix2/ntuples_10_600/ntuples_10_600"
 
     if dataset_id==1:
         # Multiparticle
-        pkl_path = "/eos/user/j/jejarosl/SWAN_projects/Multiparticle_pkl_dataset_final_cand_fixed_no_norm/"
-        processed_dataset_path = "/eos/user/j/jejarosl/SWAN_projects/Multiparticle_dataset_final_cand_fixed_no_norm/"
+        pkl_path = "/eos/home-m/mmatthew/Patatrack13/Cone-Graph-building/dataproduction/Multiparticle_pkl_dataset_final_cand_fixed_no_norm/"
+        processed_dataset_path = "/eos/home-m/mmatthew/Patatrack13/Cone-Graph-building/dataproduction/Multiparticle_dataset_final_cand_fixed_no_norm/"
         n_tuples_path = "/eos/cms/store/group/dpg_hgcal/comm_hgcal/wredjeb/TICLv4Sample/CloseBySamples/MultiParticle/ntuples_10_600"
 
     if dataset_id==2:
-        pkl_path = "/eos/user/j/jejarosl/SWAN_projects/PionPU_pkl_dataset_no_norm/"
-        processed_dataset_path = "/eos/user/j/jejarosl/PionPU_dataset_no_norm/"
+        pkl_path = "/eos/home-m/mmatthew/Patatrack13/Cone-Graph-building/dataproduction/PionPU_pkl_dataset_no_norm/"
+        processed_dataset_path = "/eos/home-m/mmatthew/Patatrack13/Cone-Graph-building/dataproduction/PionPU_dataset_no_norm/"
         n_tuples_path = "/eos/cms/store/group/dpg_hgcal/comm_hgcal/wredjeb/TICLv4Sample/GNNTraining/SinglePion200PU/ntuples_10_600"
 
     if args.save_pkl:
