@@ -1,8 +1,10 @@
-def list_flatten(my_list):
-    return [item for sublist in my_list for item in sublist]
+import matplotlib.pyplot as plt
 
 from collections import defaultdict
 import torch
+
+def list_flatten(my_list):
+    return [item for sublist in my_list for item in sublist]
 
 def find_connected_components(event, predictions, edge_index=None, thr=0.9, PU=False):
     """
@@ -157,3 +159,31 @@ def weight_init(m):
             #print("found bias")
             m.bias.data.fill_(0.)
 
+def save_pred(pred_flat, lab_flat, epoch=0, out_folder=None):
+    
+    true_pred = pred_flat[lab_flat==1] 
+    false_pred = pred_flat[lab_flat!=1]
+
+    bins = 100
+    fig = plt.figure(figsize=(12, 3))
+    ax1 = fig.add_subplot(121)
+    ax1.hist(false_pred, bins=bins, density=1, label="False predictions", histtype='step')
+    ax1.hist(true_pred, bins=bins, density=1, label="True predictions", histtype='step')
+    ax1.legend(loc="upper center") #loc="upper left")
+    #ax1.set_yscale('log')
+
+    ax2 = fig.add_subplot(122)
+    ax2.hist(pred_flat, bins=bins, label="All predictions")
+    ax2.legend()
+
+    ax1.set_title("MLP True and False edge prediction distribtion", fontsize=15)
+    ax1.set_xlabel("Predicted score", fontsize=14)
+    ax1.set_ylabel('Probability [%]', fontsize=14)
+    ax2.set_title("MLP edge prediction distribtion", fontsize=15)
+    ax2.set_xlabel("Predicted score", fontsize=14)
+    ax2.set_ylabel('Counts', fontsize=14)
+    plt.show()
+
+    if out_folder is not None:
+        fig.savefig(f'{out_folder}/double-pion-0-pu-edge-pred-distributions-epoch-{epoch+1}.pdf', dpi=300, bbox_inches='tight', transparent=True)
+        fig.savefig(f'{out_folder}/double-pion-0-pu-edge-pred-distributions-eppoch-{epoch+1}.png', dpi=300, bbox_inches='tight', transparent=True)
