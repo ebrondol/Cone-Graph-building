@@ -590,8 +590,7 @@ class GNN_TracksterLinkingAndRegressionNet(nn.Module):
             nn.Linear(hidden_dim + edge_feature_dim + edge_hidden_dim, hidden_dim),
             nn.LeakyReLU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_dim, output_dim),
-            nn.Sigmoid()
+            nn.Linear(hidden_dim, output_dim)
         )
         
         
