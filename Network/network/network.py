@@ -688,7 +688,7 @@ class GNN_TracksterLinkingAndRegressionNet(nn.Module):
         
         nc_pred = self.ncnetwork(nc_node_emb)
 
-        return pred, node_emb,edge_emb
+        return pred, node_emb,edge_emb, nc_pred, nc_node_emb
 
 
 
