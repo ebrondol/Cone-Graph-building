@@ -75,3 +75,33 @@ def scores_reco_to_sim(predicted_clusters, truth_cluster_labels, truth_cluster_e
         best_sim_matches.append(np.argmax(scores_cluster))
         
     return reco_sim_scores, best_sim_matches, pred_cluster_energies
+
+
+def getAccuracy(y_true, y_prob, classification_threshold):
+    # TODO: make this a vector function
+    assert y_true.ndim == 1 and y_true.size() == y_prob.size()
+    y_prob = y_prob > classification_threshold
+    return (y_true == y_prob).sum().item() / y_true.size(0)
+
+def connectivity_matrix(model, data_list, ev, thr, similarity=True, prepare_network_input_data=None):
+    data_ev = prepare_test_data(data_list, ev)
+    
+    if prepare_network_input_data is not None:
+        inputs = prepare_network_input_data(data_ev.x, data_ev.edge_index, 
+                                            device='cuda:0' if next(model.parameters()).is_cuda else 'cpu')
+    else:
+        inputs = data_ev.x, data_ev.edge_index
+    out, emb = model(*inputs)
+    N = data_ev.num_nodes
+    mat = np.zeros([N, N])
+    truth_mat = np.zeros([N, N])
+    for indx, src in enumerate(data_ev.edge_index[0]):
+        dest = data_ev.edge_index[1][indx]
+        mat[src][dest] = out[indx]
+        mat[dest][src] = out[indx]
+        truth_mat[src][dest] = data_ev.edge_label[indx]
+        truth_mat[dest][src] = data_ev.edge_label[indx]
+        
+    if similarity == False:
+        mat = mat > thr
+    return mat, truth_mat

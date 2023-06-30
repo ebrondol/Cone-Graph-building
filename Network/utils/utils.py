@@ -14,7 +14,6 @@ def get_regressed_sc_energy(pred_trk_energy,sc_trk_match,sc_energy):
             pred_sc_energy = pred_trk_energy[idx].sum().unsqueeze(dim=0)
         else:
             pred_sc_energy = torch.cat((pred_sc_energy,pred_trk_energy[idx].mean().unsqueeze(dim=0)),dim=0)
-    
     return pred_sc_energy
 
 

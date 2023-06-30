@@ -423,8 +423,8 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 if __name__ == "__main__":
     # Load the dataset
     #dataset_location = "/eos/user/a/arouyer/SWAN_projects/closeByDoublePion_dataset_TICL_graph_33_properties"
-    #dataset_location = "/eos/home-m/mmatthew/Patatrack13/Cone-Graph-building/dataproduction/closeByDoublePion_dataset_final_cand_fixed_no_norm" 
-    dataset_location = "/afs/cern.ch/user/e/ebrondol/public/4Mark/closeByDoublePion_dataset/vanilla"
+    dataset_location = "/eos/home-m/mmatthew/Patatrack13/Cone-Graph-building/dataproduction/closeByDoublePion_dataset_final_cand_fixed_no_norm" 
+    #dataset_location = "/afs/cern.ch/user/e/ebrondol/public/4Mark/closeByDoublePion_dataset/vanilla"
 
     print(">>> Loading datasets...")
     trainDataset = torch.load(f"{dataset_location}/dataTraining.pt")
@@ -489,7 +489,6 @@ if __name__ == "__main__":
     train_loss_hist,train_loss_nc_hist,train_loss_ec_hist = [],[],[]
     val_loss_hist,val_loss_nc_hist,val_loss_ec_hist = [],[],[]
     for epoch in range(epochs):
-        """
         loss,loss_ec,loss_nc = train(model, optimizer, train_dl, epoch+1, device, edge_features=False)
         train_loss_hist.append(loss)
         print(f'Epoch: {epoch+1}, train loss: {loss:.4f}, train e.c. loss: {loss_ec:.4f}, train n.c. loss: {loss_nc:.4f}')
@@ -499,21 +498,31 @@ if __name__ == "__main__":
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 }, outputModelPath + f'/model_epoch_{epoch+1}_loss_{loss:.4f}.pt')
-        
+
         # Validation
-        """
           
         model.eval()
         pred, lab = [], []
         val_pred_loss, j = 0, 0
         val_energy_loss = 0
+
+        # Define variables for histograms
+        rng = [0,2]
+        nbins = 50
+        nhists = 6
+        bs = (rng[1]-rng[0])/nbins
+        reg_histos = {"regressed":{},
+            "unregressed":{}}
+        for i in range(nhists):
+            reg_histos["regressed"][i]=np.zeros(nbins)
+            reg_histos["unregressed"][i]=np.zeros(nbins)
+
         for sample in val_dl:
             sample = sample.to(device)
             #if sample.edge_index.shape[1] != sample.edge_features.shape[0]:
             #    continue 
-            #data = prepare_network_input_data(sample.x, sample.edge_index, None, device=device)
-            data = prepare_network_input_data(sample.x, sample.edge_index)
-
+            data = prepare_network_input_data(sample.x, sample.edge_index, None, device=device)
+            #data = prepare_network_input_data(sample.x, sample.edge_index)
             nn_pred,emb, edge_emb,nc_pred, nc_node_em = model(*data)
             #pred += nn_pred.tolist().detach().cpu()
             #lab += sample.edge_label.tolist().detach().cpu()
@@ -521,7 +530,23 @@ if __name__ == "__main__":
 
             pred_sc_energy = get_regressed_sc_energy(nc_pred,sample.best_simTs_match, sample.sc_energy)
             non_nan_idx = torch.nonzero(~torch.isnan(pred_sc_energy)).squeeze()
-            val_energy_loss += nn.MSELoss()(pred_sc_energy[non_nan_idx],sample.sc_energy[non_nan_idx]/100)
+            val_energy_loss += nn.MSELoss()(pred_sc_energy[non_nan_idx],sample.sc_energy[non_nan_idx]/100).detach().cpu()
+
+            # Fill Histograms
+            unregressed_sc_energy = get_regressed_sc_energy(sample.x[:,13].unsqueeze(dim=1),sample.best_simTs_match,sample.sc_energy)
+            for ele in non_nan_idx:
+                eidx = int(sample.sc_energy[ele]/100)
+                regressed_frac = pred_sc_energy[ele]/sample.sc_energy[ele]
+                idx = int(regressed_frac/bs)
+                if idx > 50:
+                    continue
+                reg_histos["regressed"][eidx][idx] +=1 
+
+                unregressed_frac = unregressed_sc_energy[ele]/sample.sc_energy[ele]
+                idx = int(unregressed_frac/bs)
+                if idx > 50: # Bug: Something seems to be wrong with the calculation
+                    continue
+                reg_histos["unregressed"][eidx][idx] +=1
 
             j += 1
             
@@ -535,13 +560,17 @@ if __name__ == "__main__":
         #                                                    threshold_step=0.05, output_folder=outputModelPath,
         #                                                    epoch=epoch+1)
         #classification_threshold = get_best_threshold(TNR, TPR, thresholds)
-        print(f"Chosen classification threshold is: {classification_threshold}")
+        #print(f"Chosen classification threshold is: {classification_threshold}")
 
         #plot_prediction_distribution_standard_and_log(np.array(pred), np.array(lab),
         #                                            epoch=epoch+1, thr = classification_threshold,
         #                                            folder=outputModelPath, val=True)
 
 
+
+
+
+        plot_energy_regression_histograms(reg_histos, rng, nbins,folder=outputModulePath,val=True)
         #save_pred(np.array(pred), np.array(lab), epoch=epoch, out_folder=outputModelPath)
         save_loss(train_loss_hist, val_loss_hist, outputLossFunctionPath=outputModelPath,title="losses")
         save_loss(train_loss_nc_hist, val_loss_nc_hist, outputLossFunctionPath=outputModelPath,title="losses_nc")
