@@ -23,7 +23,6 @@ def loadData(path, num_files = -1):
     """
     Loads pickle files of the graph data for network training.
     """
-    pdb.set_trace()
 
     f_edges_label = glob.glob(f"{path}*edges_labels.pkl")
     #f_edges_features = glob.glob(f"{path}*edges_features.pkl")
@@ -543,7 +542,6 @@ def save_dataset(pickle_data, output_location, trainRatio = 0.8, valRatio = 0.1,
         
     print("Loading Pickle Files...")
     # obtain edges_label, edges, nodes_features from all the pickle files
-    pdb.set_trace()
     el, es1, es2, ed, nd, bs, cm, se, sp, sat = loadData(pickle_data, num_files = -1)
     print("Loaded.")
     
@@ -633,8 +631,8 @@ if __name__ == "__main__":
 
     if dataset_id==0:
         # Pion
-        pkl_path = "/eos/user/e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_pkl/"
-        processed_dataset_path = "/eos/user/e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_dataset/"
+        pkl_path = "/eos/user/e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_pkl/vanilla_12k_events/"
+        processed_dataset_path = "/eos/user/e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_dataset/vanilla_12k_events/"
         n_tuples_path = "/eos/cms/store/group/dpg_hgcal/comm_hgcal/wredjeb/TICLv4Sample/Uniform10_600/CloseByTwoPion_fix2/ntuples_10_600/ntuples_10_600"
 
     if dataset_id==1:
