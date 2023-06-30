@@ -2,6 +2,19 @@ import matplotlib.pyplot as plt
 
 from collections import defaultdict
 import torch
+import pdb
+
+
+def get_regressed_sc_energy(pred_trk_energy,sc_trk_match,sc_energy):
+    pred_sc_energy = torch.tensor([])
+    for i in range(len(sc_energy)):
+        idx = torch.where(sc_trk_match==i,1,0).nonzero()
+        if pred_sc_energy.numel()==0:
+            pred_sc_energy = pred_trk_energy[idx].sum().unsqueeze(dim=0)
+        else:
+            pred_sc_energy = torch.cat((pred_sc_energy,pred_trk_energy[idx].mean().unsqueeze(dim=0)),dim=0)
+    return pred_sc_energy
+
 
 def list_flatten(my_list):
     return [item for sublist in my_list for item in sublist]
@@ -99,7 +112,6 @@ def _get_adj_matrix(X, edge_index, device=None):
 
     SRC = torch.cat((torch.eye(N, device=device), S, D), dim=0)
     DST = torch.cat((torch.eye(N, device=device), D, S), dim=0)
-        
     return torch.unsqueeze(SRC, dim=0).float(), torch.unsqueeze(DST, dim=0).float()
 
 def prepare_network_input_data(X, edge_index, edge_features=None, device=None):

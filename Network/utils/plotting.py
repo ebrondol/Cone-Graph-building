@@ -1,7 +1,10 @@
 from sklearn.metrics import confusion_matrix, roc_curve, auc, f1_score, balanced_accuracy_score
 import matplotlib.pyplot as plt
 import numpy as np
-    
+from sklearn.metrics import confusion_matrix, roc_curve, auc, f1_score, balanced_accuracy_score
+import matplotlib.pyplot as plt
+import math
+
 def plot_pred_distr(lab, pred, decision_th = 0.6):
 
     #pred = pred.cpu().detach().numpy()
@@ -464,3 +467,35 @@ def plot_prediction_distribution_standard_and_log(pred, targets, epoch=None, thr
         name = f"plot_train_prediction_distribution_epoch_{epoch}.png" if val else f"plot_val_prediction_distribution_epoch_{epoch}.png"
         plt.savefig(f'{folder}/{name}', bbox_inches='tight')
     plt.show()
+
+
+
+def plot_energy_regression_histograms(histos, rng, nbins,folder, val=False):
+    # The function takes as input a dictionary of histograms, the range for the x axis, and the number of bins
+    # for the energy fractions, regressed and unregressed, and for 6 different energy ranges [0,100,200,300,400,500,600]
+    
+    x = np.linspace(rng[0],rng[1],nbins)
+    bs = x[1]-x[0]
+    rows = math.ceil(len(histos["unregressed"].keys())/3)
+    fig, axs = plt.subplots(rows,3,figsize=(15,15))
+    i,j = 0,0 
+    for energy in d["unregressed"].keys():
+        axs[i,j].step(x,histos["unregressed"][energy],label="unregressed")
+        axs[i,j].step(x,histos["regressed"][energy],label="regressed")
+        axs[i,j].grid()
+        axs[i,j].legend()
+        axs[i,j].set_title("%s GeV"%energy)
+        axs[i,j].set_xlabel(r"$en_{TRKs}/en_{SC}$")
+        j=j+1
+        if j%3==0:
+            i=i+1
+            j=0
+    fig.suptitle("Energy Regression Histograms")
+
+    plt.tight_layout()
+    if folder is not None:
+        name = f"plot_train_energy_regression_histogram_epoch_{epoch}.png" if val else f"plot_val_energy_regression_histogram_epoch_{epoch}.png"
+        plt.savefig(f'{folder}/{name}', bbox_inches='tight')
+    plt.show()
+
+
