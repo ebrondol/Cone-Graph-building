@@ -302,6 +302,8 @@ def save_loss(train_loss_history, val_loss_history, outputLossFunctionPath,title
     plt.ylabel("Loss", fontsize=22)
     plt.xlabel("Epochs", fontsize=22)
     plt.title("Training and Validation Loss", fontsize=24)
+    plt.yscale('log')
+
     plt.legend()
     plt.savefig(f"{outputLossFunctionPath}/{title}.png")
     plt.show()
@@ -486,9 +488,9 @@ if __name__ == "__main__":
     loss_obj = torch.nn.BCELoss()
     #model.apply(weight_init)
 
-    epochs = 5
+    epochs = 50
     decision_th = 0.85
-    outputModelPath = "/eos/home-e/ebrondol/SWAN_projects/Cone-Graph-building2/output/test_3/"
+    outputModelPath = "/eos/home-e/ebrondol/SWAN_projects/Cone-Graph-building2/output/test_3_test/"
     mkdir_p(outputModelPath)
 
     # Training Loop
@@ -499,6 +501,8 @@ if __name__ == "__main__":
         loss,loss_ec,loss_nc = train(model, optimizer, train_dl, epoch+1, device, edge_features=False)
 #E        loss = train(model, optimizer, train_dl, epoch+1, device, edge_features=True)
         train_loss_hist.append(loss)
+        train_loss_nc_hist.append(loss_nc)
+        train_loss_ec_hist.append(loss_ec)
         print(f'Epoch: {epoch+1}, train loss: {loss:.4f}, train e.c. loss: {loss_ec:.4f}, train n.c. loss: {loss_nc:.4f}')
         
         print(f">>> Saving model to {outputModelPath + f'/model_epoch_{epoch+1}_loss_{loss:.4f}.pt'}")
@@ -531,14 +535,14 @@ if __name__ == "__main__":
 #E                continue
 #E            data = prepare_network_input_data(sample.x, sample.edge_index, sample.edge_features, device=device)
             data = prepare_network_input_data(sample.x, sample.edge_index, None, device=device)
-            nn_pred,emb, edge_emb,nc_pred, nc_node_em = model(*data)
+            nn_pred, emb, edge_emb, nc_pred, nc_node_em = model(*data)
 #E            pred += nn_pred.tolist()
 #E            lab += sample.edge_label.tolist()
             val_pred_loss += loss_obj(nn_pred, sample.edge_label.float()).item()
 
-            pred_sc_energy = get_regressed_sc_energy(nc_pred,sample.best_simTs_match, sample.sc_energy)
+            pred_sc_energy = get_regressed_sc_energy(nc_pred, sample.best_simTs_match, sample.sc_energy)
             non_nan_idx = torch.nonzero(~torch.isnan(pred_sc_energy)).squeeze()
-            val_energy_loss += nn.MSELoss()(pred_sc_energy[non_nan_idx],sample.sc_energy[non_nan_idx]/100).detach().cpu()
+            val_energy_loss += nn.MSELoss()(pred_sc_energy[non_nan_idx], sample.sc_energy[non_nan_idx]/100).detach().cpu()
 
             # Fill Histograms
             unregressed_sc_energy = get_regressed_sc_energy(sample.x[:,13].unsqueeze(dim=1),sample.best_simTs_match,sample.sc_energy)
@@ -563,6 +567,8 @@ if __name__ == "__main__":
         val_loss = val_energy_loss + val_pred_loss
         print(f'Epoch: {epoch+1}, val loss: {val_loss:.4f}')
         val_loss_hist.append(val_loss)
+        val_loss_nc_hist.append(val_pred_loss)
+        val_loss_ec_hist.append(val_energy_loss)
         
         #TNR, TPR, thresholds = classification_thresholds_plot(np.array(pred), np.array(lab),
         #                                                    threshold_step=0.05, output_folder=outputModelPath,
@@ -574,11 +580,7 @@ if __name__ == "__main__":
         #                                            epoch=epoch+1, thr = classification_threshold,
         #                                            folder=outputModelPath, val=True)
 
-
-
-
-
-        plot_energy_regression_histograms(reg_histos, rng, nbins,folder=outputModelPath,val=True)
+        plot_energy_regression_histograms(reg_histos, rng, nbins, epoch=epoch, folder=outputModelPath, val=True)
         #save_pred(np.array(pred), np.array(lab), epoch=epoch, out_folder=outputModelPath)
         save_loss(train_loss_hist, val_loss_hist, outputLossFunctionPath=outputModelPath,title="losses")
         save_loss(train_loss_nc_hist, val_loss_nc_hist, outputLossFunctionPath=outputModelPath,title="losses_nc")

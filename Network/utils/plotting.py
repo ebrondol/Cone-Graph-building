@@ -470,7 +470,7 @@ def plot_prediction_distribution_standard_and_log(pred, targets, epoch=None, thr
 
 
 
-def plot_energy_regression_histograms(histos, rng, nbins,folder, val=False):
+def plot_energy_regression_histograms(histos, rng, nbins, epoch, folder, val=False):
     # The function takes as input a dictionary of histograms, the range for the x axis, and the number of bins
     # for the energy fractions, regressed and unregressed, and for 6 different energy ranges [0,100,200,300,400,500,600]
     
@@ -479,12 +479,12 @@ def plot_energy_regression_histograms(histos, rng, nbins,folder, val=False):
     rows = math.ceil(len(histos["unregressed"].keys())/3)
     fig, axs = plt.subplots(rows,3,figsize=(15,15))
     i,j = 0,0 
-    for energy in d["unregressed"].keys():
+    for energy in histos["unregressed"].keys():
         axs[i,j].step(x,histos["unregressed"][energy],label="unregressed")
         axs[i,j].step(x,histos["regressed"][energy],label="regressed")
         axs[i,j].grid()
         axs[i,j].legend()
-        axs[i,j].set_title("%s GeV"%energy)
+        axs[i,j].set_title("%s-%s GeV"%(str(energy*100),str((energy+1)*100)))
         axs[i,j].set_xlabel(r"$en_{TRKs}/en_{SC}$")
         j=j+1
         if j%3==0:
