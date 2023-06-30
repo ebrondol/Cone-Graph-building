@@ -344,7 +344,7 @@ def train(model, opt, loader, epoch, device="cuda", edge_features=False,Contrast
             data = prepare_network_input_data(sample.x, sample.edge_index, sample.edge_features, device=device)
         else:
             data = prepare_network_input_data(sample.x, sample.edge_index, device=device)
-        z, emb,edg_emb, nc_pred, nc_node_em = model(*data)    
+        z, emb, edg_emb, nc_pred, nc_node_em = model(*data)    
 
         # compute the edge prediction loss
         if Contrastive:  
@@ -424,7 +424,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 if __name__ == "__main__":
     # Load the dataset
 #E    dataset_location = "/eos/user/a/arouyer/SWAN_projects/closeByDoublePion_dataset_TICL_graph_33_properties"
-    dataset_location = "/eos/home-e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_dataset/"
+    dataset_location = "/eos/user/e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_dataset/test_3/"
     #dataset_location = "/afs/cern.ch/user/e/ebrondol/public/4Mark/closeByDoublePion_dataset/vanilla"
 
     print(">>> Loading datasets...")
@@ -475,12 +475,10 @@ if __name__ == "__main__":
     val_dl = DataLoader(valDataset, batch_size=1, shuffle=True)
 
     # Create Model
-    model = GNN_TracksterLinkingNet_multi(input_dim = trainDataset[0].x.shape[1], 
-#E                                   edge_feature_dim=trainDataset[0].edge_features.shape[1],
-#E                                   edge_hidden_dim=32, hidden_dim=64, weighted_aggr=True,multi_head = 3,device=device)
+    model = GNN_TracksterLinkingAndRegressionNet(input_dim = trainDataset[0].x.shape[1], 
                                     edge_feature_dim=0,
-                                    edge_hidden_dim=0, hidden_dim=64, weighted_aggr=True,multi_head = 3,device=device)
-                                #dropout=0)
+                                    edge_hidden_dim=0, hidden_dim=64, weighted_aggr=True,device=device)
+
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     scheduler = StepLR(optimizer, step_size=20, gamma=0.5)
@@ -488,9 +486,9 @@ if __name__ == "__main__":
     loss_obj = torch.nn.BCELoss()
     #model.apply(weight_init)
 
-    epochs = 50
+    epochs = 5
     decision_th = 0.85
-    outputModelPath = "/eos/home-e/ebrondol/SWAN_projects/Cone-Graph-building2/output/test_1/"
+    outputModelPath = "/eos/home-e/ebrondol/SWAN_projects/Cone-Graph-building2/output/test_3/"
     mkdir_p(outputModelPath)
 
     # Training Loop
@@ -580,7 +578,7 @@ if __name__ == "__main__":
 
 
 
-        plot_energy_regression_histograms(reg_histos, rng, nbins,folder=outputModulePath,val=True)
+        plot_energy_regression_histograms(reg_histos, rng, nbins,folder=outputModelPath,val=True)
         #save_pred(np.array(pred), np.array(lab), epoch=epoch, out_folder=outputModelPath)
         save_loss(train_loss_hist, val_loss_hist, outputLossFunctionPath=outputModelPath,title="losses")
         save_loss(train_loss_nc_hist, val_loss_nc_hist, outputLossFunctionPath=outputModelPath,title="losses_nc")

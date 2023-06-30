@@ -631,8 +631,8 @@ if __name__ == "__main__":
 
     if dataset_id==0:
         # Pion
-        pkl_path = "/eos/user/e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_pkl/vanilla_12k_events/"
-        processed_dataset_path = "/eos/user/e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_dataset/vanilla_12k_events/"
+        pkl_path = "/eos/user/e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_pkl/test_3/"
+        processed_dataset_path = "/eos/user/e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_dataset/test_3/"
         n_tuples_path = "/eos/cms/store/group/dpg_hgcal/comm_hgcal/wredjeb/TICLv4Sample/Uniform10_600/CloseByTwoPion_fix2/ntuples_10_600/ntuples_10_600"
 
     if dataset_id==1:
