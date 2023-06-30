@@ -3,6 +3,7 @@ from utils.plotting import *
 from utils.scores import *
 from utils.utils import *
 from network.network import *
+import pdb
 
 import os
 import numpy as np
@@ -291,7 +292,7 @@ def train_val(model, trainLoader, valLoader, optimizer, loss_function, epochs, o
         
     return train_loss_history, val_loss_history
 
-def save_loss(train_loss_history, val_loss_history, outputLossFunctionPath):
+def save_loss(train_loss_history, val_loss_history, outputLossFunctionPath,title):
     # Saving the figure of the training and validation loss
     fig = plt.figure(figsize=(10, 8))
     #plt.style.use('seaborn-whitegrid')
@@ -302,7 +303,7 @@ def save_loss(train_loss_history, val_loss_history, outputLossFunctionPath):
     plt.xlabel("Epochs", fontsize=22)
     plt.title("Training and Validation Loss", fontsize=24)
     plt.legend()
-    plt.savefig(f"{outputLossFunctionPath}/losses.png")
+    plt.savefig(f"{outputLossFunctionPath}/{title}.png")
     plt.show()
     
     # Save the train and validation loss histories to pkl files
@@ -327,7 +328,7 @@ def print_training_dataset_statistics(trainDataset):
 
 def train(model, opt, loader, epoch, device="cuda", edge_features=False,Contrastive = False):
 
-    epoch_loss = 0
+    epoch_loss, epoch_loss_ec, epoch_loss_nc = 0,0,0
     model.train()
     for sample in tqdm(loader, desc=f"Training epoch {epoch}"):
         # reset optimizer and enable training mode
@@ -343,21 +344,35 @@ def train(model, opt, loader, epoch, device="cuda", edge_features=False,Contrast
             data = prepare_network_input_data(sample.x, sample.edge_index, sample.edge_features, device=device)
         else:
             data = prepare_network_input_data(sample.x, sample.edge_index, device=device)
-        z, emb,edg_emb = model(*data)    
+        z, emb,edg_emb, nc_pred, nc_node_em = model(*data)    
 
-        # compute the loss
+        # compute the edge prediction loss
         if Contrastive:  
-            loss = loss_obj(edg_emb,sample.edge_label.float())
+            edge_loss = loss_obj(edg_emb,sample.edge_label.float())
         else:
-            loss = loss_obj(z, sample.edge_label.float())
+            edge_loss = loss_obj(z, sample.edge_label.float())
 
+
+        # compute node classification loss
+        pred_sc_energy = get_regressed_sc_energy(nc_pred,sample.best_simTs_match, sample.sc_energy)
+        non_nan_idx = torch.nonzero(~torch.isnan(pred_sc_energy)).squeeze()
+        energy_loss = nn.MSELoss()(pred_sc_energy[non_nan_idx],sample.sc_energy[non_nan_idx]/100)
+
+        # print((pred_sc_energy[non_nan_idx].sum()/sample.sc_energy[non_nan_idx].sum()*100))
+
+        loss = edge_loss + energy_loss
+
+        epoch_loss_ec += edge_loss
+        epoch_loss_nc += energy_loss
         epoch_loss += loss
+        if epoch_loss.isnan():
+            pdb.set_trace()
 
         # back-propagate and update the weight
         loss.backward()
         opt.step()
 
-    return float(epoch_loss)
+    return float(epoch_loss), float(epoch_loss_ec), float(epoch_loss_nc)
 
 
 
@@ -401,7 +416,7 @@ def train_reg(model, opt, loader, epoch, device="cuda", edge_features=False,reg 
         loss.backward()
         opt.step()
 
-    return float(epoch_loss)
+    return float(epoch_loss),
 
 
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -410,6 +425,7 @@ if __name__ == "__main__":
     # Load the dataset
 #E    dataset_location = "/eos/user/a/arouyer/SWAN_projects/closeByDoublePion_dataset_TICL_graph_33_properties"
     dataset_location = "/eos/home-e/ebrondol/SWAN_projects/Cone-Graph-building2/dataproduction/closeByDoublePion_dataset/"
+    #dataset_location = "/afs/cern.ch/user/e/ebrondol/public/4Mark/closeByDoublePion_dataset/vanilla"
 
     print(">>> Loading datasets...")
     trainDataset = torch.load(f"{dataset_location}/dataTraining.pt")
@@ -479,55 +495,96 @@ if __name__ == "__main__":
 
     # Training Loop
 
-    train_loss_hist = []
-    val_loss_hist = []
+    train_loss_hist,train_loss_nc_hist,train_loss_ec_hist = [],[],[]
+    val_loss_hist,val_loss_nc_hist,val_loss_ec_hist = [],[],[]
     for epoch in range(epochs):
-
-        loss = train(model, optimizer, train_dl, epoch+1, device, edge_features=False)
+        loss,loss_ec,loss_nc = train(model, optimizer, train_dl, epoch+1, device, edge_features=False)
 #E        loss = train(model, optimizer, train_dl, epoch+1, device, edge_features=True)
         train_loss_hist.append(loss)
-        print(f'Epoch: {epoch+1}, train loss: {loss:.4f}')
+        print(f'Epoch: {epoch+1}, train loss: {loss:.4f}, train e.c. loss: {loss_ec:.4f}, train n.c. loss: {loss_nc:.4f}')
         
         print(f">>> Saving model to {outputModelPath + f'/model_epoch_{epoch+1}_loss_{loss:.4f}.pt'}")
         torch.save({'epoch': epoch+1,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 }, outputModelPath + f'/model_epoch_{epoch+1}_loss_{loss:.4f}.pt')
-        
+
         # Validation
+          
         model.eval()
         pred, lab = [], []
-        val_loss, j = 0, 0
+        val_pred_loss, j = 0, 0
+        val_energy_loss = 0
+
+        # Define variables for histograms
+        rng = [0,2]
+        nbins = 50
+        nhists = 6
+        bs = (rng[1]-rng[0])/nbins
+        reg_histos = {"regressed":{},
+            "unregressed":{}}
+        for i in range(nhists):
+            reg_histos["regressed"][i]=np.zeros(nbins)
+            reg_histos["unregressed"][i]=np.zeros(nbins)
+
         for sample in val_dl:
             sample = sample.to(device)
 #E            if sample.edge_index.shape[1] != sample.edge_features.shape[0]:
 #E                continue
 #E            data = prepare_network_input_data(sample.x, sample.edge_index, sample.edge_features, device=device)
             data = prepare_network_input_data(sample.x, sample.edge_index, None, device=device)
-            nn_pred,emb, edge_emb = model(*data)
-            pred += nn_pred.tolist()
-            lab += sample.edge_label.tolist()
-            val_loss += loss_obj(nn_pred, sample.edge_label.float()).item()
+            nn_pred,emb, edge_emb,nc_pred, nc_node_em = model(*data)
+#E            pred += nn_pred.tolist()
+#E            lab += sample.edge_label.tolist()
+            val_pred_loss += loss_obj(nn_pred, sample.edge_label.float()).item()
+
+            pred_sc_energy = get_regressed_sc_energy(nc_pred,sample.best_simTs_match, sample.sc_energy)
+            non_nan_idx = torch.nonzero(~torch.isnan(pred_sc_energy)).squeeze()
+            val_energy_loss += nn.MSELoss()(pred_sc_energy[non_nan_idx],sample.sc_energy[non_nan_idx]/100).detach().cpu()
+
+            # Fill Histograms
+            unregressed_sc_energy = get_regressed_sc_energy(sample.x[:,13].unsqueeze(dim=1),sample.best_simTs_match,sample.sc_energy)
+            for ele in non_nan_idx:
+                eidx = int(sample.sc_energy[ele]/100)
+                regressed_frac = pred_sc_energy[ele]/sample.sc_energy[ele]
+                idx = int(regressed_frac/bs)
+                if idx > 50:
+                    continue
+                reg_histos["regressed"][eidx][idx] +=1 
+
+                unregressed_frac = unregressed_sc_energy[ele]/sample.sc_energy[ele]
+                idx = int(unregressed_frac/bs)
+                if idx > 50: # Bug: Something seems to be wrong with the calculation
+                    continue
+                reg_histos["unregressed"][eidx][idx] +=1
+
             j += 1
             
-        val_loss = float(val_loss)/j
+        val_energy_loss = float(val_energy_loss)/j
+        val_pred_loss = float(val_pred_loss)/j
+        val_loss = val_energy_loss + val_pred_loss
         print(f'Epoch: {epoch+1}, val loss: {val_loss:.4f}')
         val_loss_hist.append(val_loss)
         
-        TNR, TPR, thresholds = classification_thresholds_plot(np.array(pred), np.array(lab),
-                                                            threshold_step=0.05, output_folder=outputModelPath,
-                                                            epoch=epoch+1)
-        classification_threshold = get_best_threshold(TNR, TPR, thresholds)
-        print(f"Chosen classification threshold is: {classification_threshold}")
+        #TNR, TPR, thresholds = classification_thresholds_plot(np.array(pred), np.array(lab),
+        #                                                    threshold_step=0.05, output_folder=outputModelPath,
+        #                                                    epoch=epoch+1)
+        #classification_threshold = get_best_threshold(TNR, TPR, thresholds)
+        #print(f"Chosen classification threshold is: {classification_threshold}")
 
-        plot_prediction_distribution_standard_and_log(np.array(pred), np.array(lab),
-                                                    epoch=epoch+1, thr = classification_threshold,
-                                                    folder=outputModelPath, val=True)
+        #plot_prediction_distribution_standard_and_log(np.array(pred), np.array(lab),
+        #                                            epoch=epoch+1, thr = classification_threshold,
+        #                                            folder=outputModelPath, val=True)
 
-        test(np.array(lab), np.array(pred), classification_threshold=classification_threshold,
-                            output_folder=outputModelPath, epoch=epoch+1)
-        save_pred(np.array(pred), np.array(lab), epoch=epoch, out_folder=outputModelPath)
-        save_loss(train_loss_hist, val_loss_hist, outputLossFunctionPath=outputModelPath)
+
+
+
+
+        plot_energy_regression_histograms(reg_histos, rng, nbins,folder=outputModulePath,val=True)
+        #save_pred(np.array(pred), np.array(lab), epoch=epoch, out_folder=outputModelPath)
+        save_loss(train_loss_hist, val_loss_hist, outputLossFunctionPath=outputModelPath,title="losses")
+        save_loss(train_loss_nc_hist, val_loss_nc_hist, outputLossFunctionPath=outputModelPath,title="losses_nc")
+        save_loss(train_loss_ec_hist, val_loss_ec_hist, outputLossFunctionPath=outputModelPath,title="losses_ec")
 
         scheduler.step()   
 

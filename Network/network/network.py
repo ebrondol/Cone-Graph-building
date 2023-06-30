@@ -8,6 +8,7 @@ from torch_geometric.loader import DataLoader
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, roc_curve, auc, f1_score, fbeta_score
 from torch.utils.tensorboard import SummaryWriter
+import pdb
 
 def _get_graph_feature_from_adj(x, A, trackster_index):
     """
@@ -160,6 +161,7 @@ class GNN_TracksterLinkingNet_multi(nn.Module):
         self.weighted_aggr = weighted_aggr
         self.multi_head = multi_head
         self.device = device
+        self.ncniters = 1
     
         # Feature transformation to latent space
         self.inputnetwork = nn.Sequential(
@@ -218,6 +220,13 @@ class GNN_TracksterLinkingNet_multi(nn.Module):
             self.graphconvs.append(EdgeConvBlock(in_feat=hidden_dim, 
                                                  out_feats=[2*hidden_dim, hidden_dim],device=self.device, dropout=dropout,
                                                  weighted_aggr=weighted_aggr))
+
+        # Node Classification: Embedding
+        #self.ncgraphconvs = nn.ModuleList()
+        #for i in range(self.ncniters):
+        #    self.ncgraphconvs.append(EdgeConvBlock(in_feat=hidden_dim, 
+        #                                        out_feats=[2*hidden_dim, hidden_dim],device=self.device, dropout=dropout,
+        #                                        weighted_aggr=weighted_aggr))
         
         # Edge features from node embeddings for classification
         self.edgenetwork = nn.Sequential(
@@ -325,6 +334,14 @@ class GNN_TracksterLinkingNet_multi(nn.Module):
             pred_reversed = self.edgenetwork(edge_emb_reversed).squeeze(-1) 
             #pred = (pred+pred_reversed)/2
             pred = torch.min(pred, pred_reversed)
+
+
+        # Node Classification
+        #nc_node_emb = node_emb
+        #for graphconv in self.ncgraphconvs:
+        #    nc_node_emb = graphconv(nc_node_emb, Adj, trackster_index, alpha=alpha)
+
+        #nc_node_emb = self.node_classifier()
             
         return pred, node_emb,edge_emb
 
@@ -389,6 +406,12 @@ class GNN_TracksterLinkingNet(nn.Module):
                                                  out_feats=[2*hidden_dim, hidden_dim], device=self.device,dropout=dropout,
                                                  weighted_aggr=weighted_aggr))
         
+        self.nc_graphconvs = nn.ModuleList()
+        for i in range(niters):
+            self.nc_graphconvs.append(EdgeConvBlock(in_feat=hidden_dim, 
+                                                    out_feats=[2*hidden_dim, hidden_dim], device=self.device,dropout=dropout,
+                                                    weighted_aggr=True))
+
         # Edge features from node embeddings for classification
         self.edgenetwork = nn.Sequential(
             nn.Linear(2 * hidden_dim + edge_feature_dim + edge_hidden_dim, hidden_dim),
@@ -546,7 +569,7 @@ class GNN_TracksterLinkingAndRegressionNet(nn.Module):
             self.graphconvs.append(EdgeConvBlock(in_feat=hidden_dim, 
                                                  out_feats=[2*hidden_dim, hidden_dim], device=self.device,dropout=dropout,
                                                  weighted_aggr=weighted_aggr))
-        
+
         # Edge features from node embeddings for classification
         self.edgenetwork = nn.Sequential(
             nn.Linear(2 * hidden_dim + edge_feature_dim + edge_hidden_dim, hidden_dim),
@@ -555,6 +578,21 @@ class GNN_TracksterLinkingAndRegressionNet(nn.Module):
             nn.Linear(hidden_dim, output_dim),
             nn.Sigmoid()
         )
+
+        # Node Classification EdgeConv
+        self.nc_graphconvs = nn.ModuleList()
+        for i in range(niters):
+            self.nc_graphconvs.append(EdgeConvBlock(in_feat=hidden_dim, 
+                                                 out_feats=[2*hidden_dim, hidden_dim], device=self.device,dropout=dropout,
+                                                 weighted_aggr=True))
+        
+        self.ncnetwork = nn.Sequential(
+            nn.Linear(hidden_dim + edge_feature_dim + edge_hidden_dim, hidden_dim),
+            nn.LeakyReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, output_dim)
+        )
+        
         
     
     def forward(self, X, edge_index, Adj, trackster_index, edge_features=None):
@@ -641,7 +679,15 @@ class GNN_TracksterLinkingAndRegressionNet(nn.Module):
             #pred = (pred+pred_reversed)/2
             pred = torch.min(pred, pred_reversed)
             
-        return pred, node_emb,edge_emb
+
+        # Node Classification Network
+        nc_node_emb = node_emb
+        for graphconv in self.nc_graphconvs:
+            nc_node_emb = graphconv(nc_node_emb, Adj, trackster_index, alpha=torch.cat((pred,pred),dim=0))
+        
+        nc_pred = self.ncnetwork(nc_node_emb)
+
+        return pred, node_emb,edge_emb, nc_pred, nc_node_emb
 
 
 
